@@ -49,7 +49,7 @@ def wait_with_progress(seconds: int, label: str) -> None:
 def click_join_button(page: Any) -> None:
     page.wait_for_timeout(1000)
     join_pattern = re.compile(
-        r"^\s*(?:다시 참여|재참여|참여하기|참여 요청|참가|참여|Join now|Join|Ask to join|Request to join)\s*$",
+        r"^\s*(?:지금 참여하기|현재 기기로 전환|다시 참여|재참여|참여하기|참여 요청|참가|참여|Join now|Join|Ask to join|Request to join)\s*$",
         re.IGNORECASE,
     )
     join_candidates = (
@@ -133,22 +133,29 @@ def start_tab_presentation(page: Any) -> None:
     ).first
     try:
         present_button.click(timeout=10000)
+        print("프레젠테이션 시작 버튼을 눌렀습니다.")
     except PlaywrightTimeoutError as error:
         raise RuntimeError("Meet의 발표 시작 버튼을 찾지 못했습니다.") from error
 
-    tab_option = page.get_by_text(
-        re.compile(r"^탭$|^A tab$|^Tab$", re.IGNORECASE)
-    ).first
-    try:
-        tab_option.click(timeout=10000)
-    except PlaywrightTimeoutError as error:
-        raise RuntimeError("Meet의 탭 공유 메뉴를 찾지 못했습니다.") from error
+    #print("공유 메뉴에 보이는 텍스트:", page.locator("body").inner_text())
+
+    #tab_option = page.get_by_text(
+        #re.compile(r"^탭$|^A tab$|^Tab$", re.IGNORECASE)
+    #).first
+    #try:
+        #tab_option.click(timeout=10000)
+    #except PlaywrightTimeoutError as error:
+        #raise RuntimeError("Meet의 탭 공유 메뉴를 찾지 못했습니다.") from error
+    #except PlaywrightTimeoutError:
+        #print("탭 공유 메뉴를 찾지 못했습니다.")
+        #input("현재 Meet 화면을 확인한 후 Enter를 누르세요.")
 
     stop_button = page.get_by_role(
         "button", name=re.compile(r"발표 중지|Stop presenting", re.IGNORECASE)
     ).first
     try:
         stop_button.wait_for(state="visible", timeout=15000)
+        print("동영상 탭 자동 공유가 시작되었습니다.")
     except PlaywrightTimeoutError as error:
         raise RuntimeError("동영상 탭 자동 공유가 시작되지 않았습니다.") from error
 
@@ -221,16 +228,23 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
             turn_camera_off(meet_page)
         switch_to_current_device(meet_page)
         click_join_button(meet_page)
-
+        
+        # 방송 시작 후 대기는 기본이고, 
+        # 동영상 공유전 대기는 내가 수동으로 동영상 을 공유하기 까기 기다려주는 초기로직이니까 
+        # 제거해 주자
         if start_delay_seconds:
             wait_with_progress(start_delay_seconds, "방송 시작 후 대기")
-        wait_with_progress(before_seconds, "동영상 공유 전 대기")
+        #### wait_with_progress(before_seconds, "동영상 공유 전 대기")
 
         video_server, video_url = start_video_server(video_path)
         video_page = context.new_page()
         video_page.goto(video_url, wait_until="domcontentloaded")
-        meet_page.bring_to_front()
+        
         print("동영상 탭을 열었습니다.")
+        print("동영상 로딩을 위해 10초 대기합니다.")
+        wait_with_progress(10, "동영상 로딩 대기")
+
+        meet_page.bring_to_front()
         print("동영상 탭은 자동 재생됩니다.")
         start_tab_presentation(meet_page)
         print("동영상 탭 자동 공유를 시작했습니다.")
