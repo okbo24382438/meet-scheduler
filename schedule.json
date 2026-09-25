@@ -1,0 +1,86 @@
+{
+  "timezone": "local",
+  "meeting_url": "https://meet.google.com/bax-ecap-ifm",
+  "mode": "test",
+  "timing": {
+    "production": {
+      "before_video_minutes": 5,
+      "use_full_video_duration": true,
+      "after_video_minutes": 5
+    },
+    "test": {
+      "start_delay_seconds": 10,
+      "before_video_seconds": 10,
+      "video_max_seconds": 10,
+      "after_video_seconds": 10
+    }
+  },
+  "device_policy": {
+    "before_video": {
+      "microphone": true,
+      "camera": true
+    },
+    "during_video": {
+      "microphone": false,
+      "camera": true
+    },
+    "after_video": {
+      "microphone": true,
+      "camera": true
+    }
+  },
+  "videos": {
+    "1": "C:\\Work\\work_meet\\movie\\sample-5mb-1.mp4",
+    "2": "C:\\Work\\work_meet\\movie\\sample-5mb-2.mp4",
+    "3": "C:\\Work\\work_meet\\movie\\sample-5mb-3.mp4",
+    "4": "C:\\Work\\work_meet\\movie\\sample-5mb-4.mp4",
+    "5": "C:\\Work\\work_meet\\movie\\sample-5mb-5.mp4"
+  },
+  "schedule": {
+    "monday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "2" },
+      { "time": "14:55", "video": "3" },
+      { "time": "19:55", "video": "4" },
+      { "time": "22:25", "video": "5" }
+    ],
+    "tuesday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "2" },
+      { "time": "14:55", "video": "3" },
+      { "time": "19:55", "video": "4" },
+      { "time": "22:25", "video": "5" }
+    ],
+    "wednesday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "2" },
+      { "time": "14:55", "video": "3" },
+      { "time": "19:55", "video": "4" },
+      { "time": "22:25", "video": "5" }
+    ],
+    "thursday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "2" },
+      { "time": "14:55", "video": "3" },
+      { "time": "19:55", "video": "4" },
+      { "time": "22:25", "video": "5" }
+    ],
+    "friday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "2" },
+      { "time": "14:55", "video": "3" },
+      { "time": "19:55", "video": "4" },
+      { "time": "22:25", "video": "5" }
+    ],
+    "saturday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "5" },
+      { "time": "19:55", "video": "4" }
+    ],
+    "sunday": [
+      { "time": "05:55", "video": "1" },
+      { "time": "10:25", "video": "5" },
+      { "time": "19:55", "video": "4" }
+    ]
+  }
+}
