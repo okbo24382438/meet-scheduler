@@ -31,6 +31,7 @@ def start_chrome_for_automation(capture_title: str) -> None:
         [
             str(chrome_path),
             "--remote-debugging-port=9222",
+            "--autoplay-policy=no-user-gesture-required",
             f"--user-data-dir={profile_path}",
             f"--auto-select-tab-capture-source-by-title={capture_title}",
         ]
@@ -215,8 +216,16 @@ def start_video_server(video_path: Path) -> tuple[ThreadingHTTPServer, str]:
                     "<!doctype html><html><head>"
                     f"<title>[VIDEO ONLY] {video_path.name}</title>"
                     "</head><body style='margin:0;background:#000'>"
-                    f"<video autoplay playsinline controls style='width:100vw;height:100vh' "
-                    f"src='/video/{quote(video_path.name)}'></video></body></html>"
+                    f"<video id='video' autoplay playsinline controls "
+                    f"style='width:100vw;height:100vh' "
+                    f"src='/video/{quote(video_path.name)}'></video>"
+                    "<script>"
+                    "const video = document.getElementById('video');"
+                    "video.play().catch(error => {"
+                    "    console.log('자동 재생 실패:', error);"
+                    "});"
+                    "</script>"
+                    "</body></html>"
                 ).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -278,17 +287,51 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
         video_server, video_url = start_video_server(video_path)
         video_page = context.new_page()
         video_page.goto(video_url, wait_until="domcontentloaded")
+
+        video_element = video_page.locator("video")
+        video_element.wait_for(state="visible")
+        # 동영상이 준비될 때까지 대기합니다.
+        video_element.evaluate(
+            """
+            video => new Promise(resolve => {
+                if (video.readyState >= 3) {
+                    resolve();
+                    return;
+                }
+
+                video.addEventListener("canplay", resolve, { once: true });
+            })
+            """
+        )
+
+        # 디버깅 코드: 동영상 상태를 확인합니다.
+        print("영상 paused 상태:", video_element.evaluate("video => video.paused"))
+        print("영상 readyState:", video_element.evaluate("video => video.readyState"))
+        print("영상 현재 시간:", video_element.evaluate("video => video.currentTime"))
+        # 디버깅 코드: 동영상 상태를 확인합니다.
+
         meet_page.bring_to_front()
         print("동영상 탭을 열었습니다.")
         print("동영상 탭은 자동 재생됩니다.")
         start_tab_presentation(meet_page, capture_title)
         print("동영상 탭 자동 공유를 시작했습니다.")
 
-        if test_mode:
-            wait_with_progress(video_max_seconds, "동영상 공유 테스트")
-        else:
-            print("운영 모드에서는 동영상 종료를 확인한 뒤 계속 진행합니다.")
-            input("동영상 재생이 끝나면 Enter를 누르세요. ")
+        # 동영상 실제 시간만큼 재생 및 종료 처리
+        print("동영상이 끝날 때까지 재생합니다.")
+        video_page.locator("video").wait_for(state="visible")
+        video_page.locator("video").evaluate(
+            """
+            video => new Promise(resolve => {
+                if (video.ended) {
+                    resolve();
+                    return;
+                }
+
+                video.addEventListener("ended", resolve, { once: true });
+            })
+            """
+        )
+        print("동영상 재생이 끝났습니다.")
 
         video_page.close()
         video_server.shutdown()

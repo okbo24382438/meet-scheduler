@@ -1,6 +1,7 @@
 {
   "timezone": "local",
-  "meeting_url": "https://meet.google.com/bax-ecap-ifm",
+  "meeting_url_real": "https://meet.google.com/bax-ecap-ifm",
+  "meeting_url": "https://meet.google.com/xqw-jjmo-hdt",
   "mode": "test",
   "timing": {
     "production": {
@@ -30,11 +31,11 @@
     }
   },
   "videos": {
-    "1": "C:\\Work\\work_meet\\movie\\sample-5mb-1.mp4",
-    "2": "C:\\Work\\work_meet\\movie\\sample-5mb-2.mp4",
-    "3": "C:\\Work\\work_meet\\movie\\sample-5mb-3.mp4",
-    "4": "C:\\Work\\work_meet\\movie\\sample-5mb-4.mp4",
-    "5": "C:\\Work\\work_meet\\movie\\sample-5mb-5.mp4"
+    "1": "C:\\Work\\work_meet\\movie\\movie_1.mp4",
+    "2": "C:\\Work\\work_meet\\movie\\movie_2.mp4",
+    "3": "C:\\Work\\work_meet\\movie\\movie_3.mp4",
+    "4": "C:\\Work\\work_meet\\movie\\movie_4.mp4",
+    "5": "C:\\Work\\work_meet\\movie\\movie_5.mp4"
   },
   "schedule": {
     "monday": [
