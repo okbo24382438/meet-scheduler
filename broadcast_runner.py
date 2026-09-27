@@ -1,8 +1,10 @@
 import argparse
+import subprocess
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import re
 import time
+import urllib.request
 from pathlib import Path
 from threading import Thread
 from typing import Any
@@ -18,6 +20,44 @@ CONFIG_FILE = Path("schedule.json")
 AUTH_FILE = Path(".auth/google_state.json")
 
 
+# 파이썬에서 자동화용 Chrome을 실행하는 함수
+def start_chrome_for_automation(capture_title: str) -> None:
+    chrome_path = Path(
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    )
+    profile_path = Path("OKBO_automation").resolve()
+
+    subprocess.Popen(
+        [
+            str(chrome_path),
+            "--remote-debugging-port=9222",
+            f"--user-data-dir={profile_path}",
+            f"--auto-select-tab-capture-source-by-title={capture_title}",
+        ]
+    )
+
+    print("자동화용 Chrome을 실행했습니다.")
+
+# Chrome 원격 디버깅 포트가 준비될 때까지 대기하는 함수
+def wait_for_chrome_debug_port(timeout_seconds: int = 15) -> None:
+    start_time = time.time()
+
+    while time.time() - start_time < timeout_seconds:
+        try:
+            with urllib.request.urlopen(
+                "http://127.0.0.1:9222/json/version",
+                timeout=1,
+            ):
+                print("Chrome 원격 디버깅 포트가 준비되었습니다.")
+                return
+        except Exception:
+            time.sleep(0.5)
+
+    raise RuntimeError(
+        "Chrome 원격 디버깅 포트(9222)가 준비되지 않았습니다."
+    )
+
+# 활성화 타이밍을 계산하는 함수
 def active_timing(config: dict[str, Any]) -> tuple[int, int, int, int, bool]:
     if config["mode"] == "test":
         timing = config["timing"]["test"]
@@ -38,13 +78,14 @@ def active_timing(config: dict[str, Any]) -> tuple[int, int, int, int, bool]:
         timing["use_full_video_duration"],
     )
 
-
+# 진행 상황을 표시하며 대기하는 함수
 def wait_with_progress(seconds: int, label: str) -> None:
     for remaining in range(seconds, 0, -1):
         if remaining == seconds or remaining <= 5 or remaining % 10 == 0:
             print(f"{label}: {remaining}초 남음")
         time.sleep(1)
 
+# 게스트 이름 입력란에 이름을 입력하는 함수
 def enter_guest_name(page: Any, name: str) -> None:
     name_input = page.get_by_role(
         "textbox", name=re.compile(r"이름|Name", re.IGNORECASE)
@@ -57,6 +98,8 @@ def enter_guest_name(page: Any, name: str) -> None:
     except PlaywrightTimeoutError as error:
         raise RuntimeError("참여 이름 입력란을 찾지 못했습니다.") from error
 
+
+#
 def click_join_button(page: Any) -> None:
     page.wait_for_timeout(1000)
     join_pattern = re.compile(
@@ -118,7 +161,7 @@ def switch_to_current_device(page: Any) -> None:
         except PlaywrightTimeoutError:
             continue
 
-
+# 카메라를 끄는 함수
 def turn_camera_off(page: Any) -> None:
     camera_off_button = page.get_by_role(
         "button",
@@ -131,6 +174,7 @@ def turn_camera_off(page: Any) -> None:
         print("카메라가 이미 꺼져 있거나 카메라 버튼을 찾지 못했습니다.")
 
 
+# 탭 발표를 시작하는 함수
 def start_tab_presentation(page: Any, capture_title: str) -> None:
     present_button = page.get_by_role(
         "button", name=re.compile(r"발표 시작|Present now|화면 공유", re.IGNORECASE)
@@ -143,8 +187,6 @@ def start_tab_presentation(page: Any, capture_title: str) -> None:
     print("공유 선택 화면의 버튼:", page.locator("button:visible").all_inner_texts())
     print("공유 선택 화면의 텍스트:", page.locator("body").inner_text()[:3000])
 
-    
-
     stop_button = page.get_by_role(
         "button", name=re.compile(r"발표 중지|Stop presenting", re.IGNORECASE)
     ).first
@@ -153,7 +195,7 @@ def start_tab_presentation(page: Any, capture_title: str) -> None:
     except PlaywrightTimeoutError as error:
         raise RuntimeError("동영상 탭 자동 공유가 시작되지 않았습니다.") from error
 
-
+# 회의에서 나가기 버튼을 클릭하는 함수
 def click_leave_button(page: Any) -> None:
     leave_button = page.get_by_role(
         "button", name=re.compile(r"나가기|Leave call|전화 끊기", re.IGNORECASE)
@@ -164,7 +206,7 @@ def click_leave_button(page: Any) -> None:
     except PlaywrightTimeoutError:
         print("퇴장 버튼을 찾지 못했습니다. 현재 화면을 확인하세요.")
 
-
+# 비디오 서버를 시작하는 함수
 def start_video_server(video_path: Path) -> tuple[ThreadingHTTPServer, str]:
     class VideoHandler(SimpleHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -196,12 +238,15 @@ def start_video_server(video_path: Path) -> tuple[ThreadingHTTPServer, str]:
     host, port = server.server_address
     return server, f"http://{host}:{port}/"
 
-
+# 방송을 실행하는 함수
 def run_broadcast(config: dict[str, Any], video_id: str) -> None:
 
     video_path = Path(config["videos"][video_id]).resolve()
     capture_title = f"[VIDEO ONLY] {video_path.name}"
     start_delay_seconds, before_seconds, video_max_seconds, after_seconds, test_mode = active_timing(config)
+    start_chrome_for_automation(capture_title)
+    # 자동화용 Chrome을 실행하고 원격 디버깅 포트가 준비될 때까지 대기합니다.
+    wait_for_chrome_debug_port()
 
     with sync_playwright() as playwright:
         browser_args = [
@@ -256,7 +301,7 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
         context.close()
         browser.close()
 
-
+# 프로그램의 진입점
 def main() -> None:
     parser = argparse.ArgumentParser(description="설정 기반 Google Meet 방송 실행기")
     parser.add_argument("--config", type=Path, default=CONFIG_FILE)
