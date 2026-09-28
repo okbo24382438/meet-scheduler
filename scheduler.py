@@ -3,6 +3,7 @@ import json
 import subprocess
 import time
 import sys
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,14 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    logging.basicConfig(
+        filename="scheduler.log",
+        encoding="utf-8",
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
     validate_config(config)
 
     while True:
@@ -114,16 +123,25 @@ def main() -> None:
         print("예약 시간이 되었습니다.")
         print(f"동영상 {entry['video']} 방송을 시작합니다.")
 
-        subprocess.run(
-            [
-                sys.executable,
-                "broadcast_runner.py",
-                "--run-now",
-                "--video",
-                entry["video"],
-            ],
-            check=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "broadcast_runner.py",
+                    "--run-now",
+                    "--video",
+                    entry["video"],
+                ],
+                check=True,
+            )
+        except subprocess.CalledProcessError as error:
+            message = (
+                f"방송 실패: 예약 시각={scheduled_at}, "
+                f"영상={entry['video']}, 종료 코드={error.returncode}"
+            )
+            print(message)
+            logging.error(message)
+            continue
 
 
 

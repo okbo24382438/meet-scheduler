@@ -124,25 +124,43 @@ def wait_for_chrome_debug_port(timeout_seconds: int = 15) -> None:
     )
 
 # 활성화 타이밍을 계산하는 함수
-def active_timing(config: dict[str, Any]) -> tuple[int, int, int, int, bool]:
-    if config["mode"] == "test":
+def active_timing(config: dict[str, Any]) -> tuple[int, int, bool]:
+    mode = config.get("mode")
+
+    if mode == "test":
         timing = config["timing"]["test"]
         return (
-            timing["start_delay_seconds"],
             timing["before_video_seconds"],
-            timing["video_max_seconds"],
             timing["after_video_seconds"],
             True,
         )
 
-    timing = config["timing"]["production"]
-    return (
-        0,
-        timing["before_video_minutes"] * 60,
-        0,
-        timing["after_video_minutes"] * 60,
-        timing["use_full_video_duration"],
-    )
+    if mode == "real":
+        timing = config["timing"]["real"]
+        return (
+            timing["before_video_minutes"] * 60,
+            timing["after_video_minutes"] * 60,
+            False,
+        )
+
+    raise ValueError(f"지원하지 않는 mode입니다: {mode}")
+
+# 회의에 참석할 Meet URL을 반환하는 함수
+# 실제 OR 테스트 모드에 따라 적절한 URL을 선택
+def active_meeting_url(config: dict[str, Any]) -> str:
+    mode = config.get("mode")
+
+    if mode == "test":
+        url = config.get("meeting_url_test")
+    elif mode == "real":
+        url = config.get("meeting_url_real")
+    else:
+        raise ValueError(f"지원하지 않는 mode입니다: {mode}")
+
+    if not url:
+        raise ValueError(f"{mode} 모드의 Meet URL이 설정되지 않았습니다.")
+
+    return url
 
 # 진행 상황을 표시하며 대기하는 함수
 def wait_with_progress(seconds: int, label: str) -> None:
@@ -312,13 +330,13 @@ def start_video_server(video_path: Path) -> tuple[ThreadingHTTPServer, str]:
     host, port = server.server_address
     return server, f"http://{host}:{port}/"
 
-# 방송을 실행하는 함수
-def run_broadcast(config: dict[str, Any], video_id: str) -> None:
+# 방송을 실행하는 Core 함수
+def _run_broadcast_core(config: dict[str, Any], video_id: str) -> None:
 
     video_path = Path(config["videos"][video_id]).resolve()
     capture_title = f"[VIDEO ONLY] {video_path.name}"
     print("화면 공유 대상 제목:", capture_title)
-    start_delay_seconds, before_seconds, video_max_seconds, after_seconds, test_mode = active_timing(config)
+    before_video_seconds, after_video_seconds, is_test_mode = active_timing(config)
     start_chrome_for_automation(capture_title)
     # 자동화용 Chrome을 실행하고 원격 디버깅 포트가 준비될 때까지 대기합니다.
     wait_for_chrome_debug_port()
@@ -335,10 +353,11 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
         context = browser.contexts[0]
 
         meet_page = context.new_page()
-        meet_page.goto(config["meeting_url"], wait_until="domcontentloaded")
+        meeting_url = active_meeting_url(config)
+        meet_page.goto(meeting_url, wait_until="domcontentloaded")
         print("Meet 접속 직후 URL:", meet_page.url)
 
-        if test_mode:
+        if is_test_mode:
             turn_camera_off(meet_page)
         switch_to_current_device(meet_page)
         print("현재 Meet URL:", meet_page.url)
@@ -346,8 +365,8 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
         click_join_button(meet_page)
         
 
-        if start_delay_seconds:
-            wait_with_progress(start_delay_seconds, "방송 시작 후 대기")
+        if before_video_seconds:
+            wait_with_progress(before_video_seconds, "동영상 공유 전 인사 대기")
 
 
         video_server, video_url = start_video_server(video_path)
@@ -404,11 +423,21 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
         video_server.server_close()
         meet_page.bring_to_front()
         print("동영상 공유를 종료했습니다. 회의실에서 종료 전 대기를 시작합니다.")
-        wait_with_progress(after_seconds, "방송 종료 전 대기")
+        wait_with_progress(after_video_seconds, "방송 종료 전 대기")
         print("종료 전 대기가 끝났습니다. 이제 본인만 회의에서 나갑니다.")
         click_leave_button(meet_page)
         context.close()
         browser.close()
+
+# 방송 실행기 진입점, 예외 처리 및 부가 기능 담당
+def run_broadcast(config: dict[str, Any], video_id: str) -> None:
+    profile_path = Path("OKBO_automation").resolve()
+
+    try:
+        _run_broadcast_core(config, video_id)
+    finally:
+        stop_existing_automation_chrome(profile_path)
+
 
 # 프로그램의 진입점
 def main() -> None:
@@ -421,14 +450,13 @@ def main() -> None:
 
     config = load_config(args.config)
     validate_config(config)
-    start_delay_seconds, before_seconds, video_max_seconds, after_seconds, test_mode = active_timing(config)
+    before_video_seconds, after_video_seconds, is_test_mode = active_timing(config)
 
     if args.dry_run:
         print(f"실행 모드: {config['mode']}")
-        print(f"회의 참여 후 대기: {start_delay_seconds}초")
-        print(f"동영상 전 대기: {before_seconds}초")
-        print(f"동영상 공유 제한: {'전체 재생' if not test_mode else f'{video_max_seconds}초'}")
-        print(f"동영상 후 대기: {after_seconds}초")
+        print(f"동영상 공유 전 대기: {before_video_seconds}초")
+        print("동영상 공유: 영상 종료까지 재생")
+        print(f"동영상 공유 후 대기: {after_video_seconds}초")
         return
 
     if args.run_now:

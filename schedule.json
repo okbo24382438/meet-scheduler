@@ -1,18 +1,16 @@
 {
-  "timezone": "local",
-  "meeting_url_real": "https://meet.google.com/bax-ecap-ifm",
-  "meeting_url": "https://meet.google.com/xqw-jjmo-hdt",
   "mode": "test",
+  "mode_description": "real 운영 모드,  test 테스트 모드",
+  "meeting_url_real": "https://meet.google.com/bax-ecap-ifm",
+  "meeting_url_test": "https://meet.google.com/xqw-jjmo-hdt",
+  "timezone": "local",
   "timing": {
-    "production": {
-      "before_video_minutes": 5,
-      "use_full_video_duration": true,
-      "after_video_minutes": 5
+    "real": {
+      "before_video_minutes": 10,
+      "after_video_minutes": 10
     },
     "test": {
-      "start_delay_seconds": 10,
       "before_video_seconds": 10,
-      "video_max_seconds": 10,
       "after_video_seconds": 10
     }
   },
@@ -41,14 +39,14 @@
     "monday": [
       { "time": "05:55", "video": "1" },
       { "time": "10:25", "video": "2" },
-      { "time": "17:41:59", "video": "3" },
-      { "time": "17:42:59", "video": "4" },
-      { "time": "17:44:59", "video": "5" }
+      { "time": "22:54:59", "video": "3" },
+      { "time": "22:55:59", "video": "4" },
+      { "time": "22:57:59", "video": "5" }
     ],
     "tuesday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "2" },
-      { "time": "14:55", "video": "3" },
+      { "time": "00:33:59", "video": "1" },
+      { "time": "00:34:59", "video": "2" },
+      { "time": "00:35:59", "video": "3" },
       { "time": "19:55", "video": "4" },
       { "time": "22:25", "video": "5" }
     ],
