@@ -1,24 +1,87 @@
 import argparse
 import subprocess
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import re
 import time
 import urllib.request
+import os
+import psutil
+
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from typing import Any
 from urllib.parse import quote
-
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
-
 from scheduler import load_config, next_schedule, validate_config
 
 
 CONFIG_FILE = Path("schedule.json")
 AUTH_FILE = Path(".auth/google_state.json")
 
+# 기존 자동화 Chrome 프로세스를 종료하는 함수
+# 크롬 생성전에 기존의 잔재 프로세스를 종료합니다.
+def stop_existing_automation_chrome(profile_path: Path) -> None:
+    expected_profile = os.path.normcase(
+        os.path.normpath(str(profile_path.resolve()))
+    )
+    targets: dict[int, psutil.Process] = {}
+
+    for process in psutil.process_iter(["name", "cmdline"]):
+        info = process.info
+        if (info["name"] or "").casefold() != "chrome.exe":
+            continue
+
+        command_line = info["cmdline"] or []
+        if any(argument.startswith("--type=") for argument in command_line):
+            continue
+
+        profile_argument = next(
+            (
+                argument.split("=", 1)[1].strip('"')
+                for argument in command_line
+                if argument.startswith("--user-data-dir=")
+            ),
+            None,
+        )
+        if profile_argument is None:
+            continue
+
+        actual_profile = os.path.normcase(os.path.normpath(profile_argument))
+        if actual_profile != expected_profile:
+            continue
+
+        targets[process.pid] = process
+        try:
+            for child in process.children(recursive=True):
+                targets[child.pid] = child
+        except psutil.NoSuchProcess:
+            pass
+
+    if not targets:
+        return
+
+    processes = list(targets.values())
+    for process in processes:
+        try:
+            process.terminate()
+        except psutil.NoSuchProcess:
+            pass
+
+    _, still_running = psutil.wait_procs(processes, timeout=5)
+
+    for process in still_running:
+        try:
+            process.kill()
+        except psutil.NoSuchProcess:
+            pass
+
+    _, still_running = psutil.wait_procs(still_running, timeout=5)
+    if still_running:
+        raise RuntimeError("자동화 Chrome 프로세스를 종료하지 못했습니다.")
+
+    print("기존 자동화 Chrome을 종료했습니다.")
 
 # 파이썬에서 자동화용 Chrome을 실행하는 함수
 def start_chrome_for_automation(capture_title: str) -> None:
@@ -26,6 +89,8 @@ def start_chrome_for_automation(capture_title: str) -> None:
         r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     )
     profile_path = Path("OKBO_automation").resolve()
+
+    stop_existing_automation_chrome(profile_path)
 
     subprocess.Popen(
         [

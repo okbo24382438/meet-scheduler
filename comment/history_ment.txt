@@ -27,11 +27,3 @@
 준비되었어?
 
 
-#자동화 Chrome의 메인 프로세스 하나만 종료
-Stop-Process -Id 2632 -Force
-
-#github서버에 로컬버전 커미하기
-git push origin main
-
-
-
