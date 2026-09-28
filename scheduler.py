@@ -1,5 +1,6 @@
 import argparse
 import json
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,12 +17,24 @@ WEEKDAYS = (
     "sunday",
 )
 
-
+#
 def load_config(path: Path = CONFIG_FILE) -> dict[str, Any]:
     with path.open(encoding="utf-8") as config_file:
         return json.load(config_file)
 
 
+# 방송 시간을 파싱하는 유틸 함수
+def parse_schedule_time(time_text: str):
+    for time_format in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(time_text, time_format).time()
+        except ValueError:
+            pass
+
+    raise ValueError(f"잘못된 방송 시간 형식입니다: {time_text}")
+
+
+# 스케줄 JSON 파일을 검증하는 함수
 def validate_config(config: dict[str, Any]) -> None:
     videos = config["videos"]
     for video_id, video_path in videos.items():
@@ -37,9 +50,11 @@ def validate_config(config: dict[str, Any]) -> None:
                 raise ValueError(
                     f"{day_name}의 동영상 번호가 없습니다: {entry['video']}"
                 )
-            datetime.strptime(entry["time"], "%H:%M")
+            parse_schedule_time(entry["time"])
 
 
+
+# 다음 방송 일정을 계산하는 함수
 def next_schedule(
     config: dict[str, Any], now: datetime | None = None
 ) -> tuple[datetime, dict[str, str]]:
@@ -51,14 +66,14 @@ def next_schedule(
         entries = config["schedule"].get(day_name, [])
 
         for entry in sorted(entries, key=lambda item: item["time"]):
-            scheduled_time = datetime.strptime(entry["time"], "%H:%M").time()
+            scheduled_time = parse_schedule_time(entry["time"])
             candidate = datetime.combine(candidate_date, scheduled_time)
             if candidate >= current_time:
                 return candidate, entry
 
     raise RuntimeError("일주일 안에 예정된 방송이 없습니다.")
 
-
+#
 def main() -> None:
     parser = argparse.ArgumentParser(description="Google Meet 방송 스케줄 확인")
     parser.add_argument(

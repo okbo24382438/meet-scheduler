@@ -252,6 +252,7 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
 
     video_path = Path(config["videos"][video_id]).resolve()
     capture_title = f"[VIDEO ONLY] {video_path.name}"
+    print("화면 공유 대상 제목:", capture_title)
     start_delay_seconds, before_seconds, video_max_seconds, after_seconds, test_mode = active_timing(config)
     start_chrome_for_automation(capture_title)
     # 자동화용 Chrome을 실행하고 원격 디버깅 포트가 준비될 때까지 대기합니다.
