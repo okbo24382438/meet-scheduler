@@ -1,6 +1,7 @@
 import argparse
 import json
 import subprocess
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -86,9 +87,51 @@ def main() -> None:
     scheduled_at, entry = next_schedule(config)
     video_path = config["videos"][entry["video"]]
 
-    print(f"다음 방송: {scheduled_at:%Y-%m-%d %H:%M}")
+    print(f"다음 방송: {scheduled_at:%Y-%m-%d %H:%M:%S}")
     print(f"동영상 {entry['video']}: {video_path}")
 
+    wait_seconds = (scheduled_at - datetime.now()).total_seconds()
+    print(f"방송까지 {wait_seconds:.1f}초 남았습니다.")
+
+    if wait_seconds > 0:
+        print("예약 시간이 될 때까지 기다립니다.")
+        
+    # 예약 시간이 될 때까지 남은 시간 매초 출력.
+    while True:
+        remaining = (scheduled_at - datetime.now()).total_seconds()
+
+        if remaining <= 0:
+            break
+
+        total_seconds = int(remaining)
+
+        days, remainder = divmod(total_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        print(
+            f"방송 시작까지 {days}일 "
+            f"{hours:02d}시간 "
+            f"{minutes:02d}분 "
+            f"{seconds:02d}초 남았습니다."
+        )
+        time.sleep(1)
+
+    print("예약 시간이 되었습니다.")
+    
+    # 방송을 시작합니다.
+    print("방송을 시작합니다.")
+
+    subprocess.run(
+        [
+            "python",
+            "broadcast_runner.py",
+            "--run-now",
+            "--video",
+            entry["video"],
+        ],
+        check=True,
+    )    
 
 if __name__ == "__main__":
     main()
