@@ -33,53 +33,182 @@
     "2": "C:\\Work\\work_meet\\movie\\movie_2.mp4",
     "3": "C:\\Work\\work_meet\\movie\\movie_3.mp4",
     "4": "C:\\Work\\work_meet\\movie\\movie_4.mp4",
-    "5": "C:\\Work\\work_meet\\movie\\movie_5.mp4"
+    "5": "C:\\Work\\work_meet\\movie\\movie_5.mp4",
+    "6": "C:\\Work\\work_meet\\movie\\movie_1.mp4",
+    "7": "C:\\Work\\work_meet\\movie\\movie_2.mp4",
+    "8": "C:\\Work\\work_meet\\movie\\movie_3.mp4",
+    "9": "C:\\Work\\work_meet\\movie\\movie_4.mp4",
+    "10": "C:\\Work\\work_meet\\movie\\movie_5.mp4"
   },
   "schedule": {
     "monday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "2" },
-      { "time": "22:54:59", "video": "3" },
-      { "time": "22:55:59", "video": "4" },
-      { "time": "22:57:59", "video": "5" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "10:25:00",
+        "video": "2"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:54:59",
+        "video": "3"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:55:59",
+        "video": "4"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:57:59",
+        "video": "5"
+      }
     ],
     "tuesday": [
-      { "time": "00:33:59", "video": "1" },
-      { "time": "00:34:59", "video": "2" },
-      { "time": "00:35:59", "video": "3" },
-      { "time": "19:55", "video": "4" },
-      { "time": "22:25", "video": "5" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "00:33:59",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "아침 타임",
+        "time": "09:19:59",
+        "video": "2"
+      },
+      {
+        "broadcast_name": "점심 타임",  
+        "time": "12:59:59",
+        "video": "3"
+      },
+      {
+        "broadcast_name": "저녁 타임",
+        "time": "19:55:00",
+        "video": "4"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:25:00",
+        "video": "5"
+      }
     ],
     "wednesday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "2" },
-      { "time": "14:55", "video": "3" },
-      { "time": "19:55", "video": "4" },
-      { "time": "22:25", "video": "5" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "아침 타임",
+        "time": "10:25:00",
+        "video": "2"
+      },
+      {
+        "broadcast_name": "점심 타임",
+        "time": "14:55:00",
+        "video": "3"
+      },
+      {
+        "broadcast_name": "저녁 타임",
+        "time": "19:55:00",
+        "video": "4"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:25:00",
+        "video": "5"
+      }
     ],
     "thursday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "2" },
-      { "time": "14:55", "video": "3" },
-      { "time": "19:55", "video": "4" },
-      { "time": "22:25", "video": "5" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "아침 타임",
+        "time": "10:25:00",
+        "video": "2"
+      },
+      {
+        "broadcast_name": "점심 타임",
+        "time": "14:55:00",
+        "video": "3"
+      },
+      {
+        "broadcast_name": "저녁 타임",
+        "time": "19:55:00",
+        "video": "4"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:25:00",
+        "video": "5"
+      }
     ],
     "friday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "2" },
-      { "time": "14:55", "video": "3" },
-      { "time": "19:55", "video": "4" },
-      { "time": "22:25", "video": "5" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "아침 타임",
+        "time": "10:25:00",
+        "video": "2"
+      },
+      {
+        "broadcast_name": "점심 타임",
+        "time": "14:55:00",
+        "video": "3"
+      },
+      {
+        "broadcast_name": "저녁 타임",
+        "time": "19:55:00",
+        "video": "4"
+      },
+      {
+        "broadcast_name": "밤 타임",
+        "time": "22:25:00",
+        "video": "5"
+      }
     ],
     "saturday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "5" },
-      { "time": "19:55", "video": "4" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      },
+      {
+        "broadcast_name": "아침 타임",
+        "time": "10:25:00",
+        "video": "5"
+      },
+      {
+        "broadcast_name": "점심 타임",
+        "time": "12:25:00",
+        "video": "5"
+      },
+      {
+        "broadcast_name": "오후 타임",
+        "time": "13:25:00",
+        "video": "5"
+      },
+      {
+        "broadcast_name": "점심 타임",
+        "time": "14:55:00",
+        "video": "4"
+      }
     ],
     "sunday": [
-      { "time": "05:55", "video": "1" },
-      { "time": "10:25", "video": "5" },
-      { "time": "19:55", "video": "4" }
+      {
+        "broadcast_name": "새벽 타임",
+        "time": "05:55:00",
+        "video": "1"
+      }
     ]
   }
 }

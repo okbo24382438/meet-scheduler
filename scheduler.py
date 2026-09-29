@@ -76,7 +76,19 @@ def next_schedule(
 
     raise RuntimeError("일주일 안에 예정된 방송이 없습니다.")
 
-#
+# 방송 시작 전 대기 시간을 계산하는 함수
+def before_video_seconds(config: dict[str, Any]) -> int:
+    mode = config.get("mode")
+
+    if mode == "test":
+        return config["timing"]["test"]["before_video_seconds"]
+
+    if mode == "real":
+        return config["timing"]["real"]["before_video_minutes"] * 60
+
+    raise ValueError(f"지원하지 않는 mode입니다: {mode}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Google Meet 방송 스케줄 확인")
     parser.add_argument(
@@ -98,12 +110,16 @@ def main() -> None:
     while True:
         scheduled_at, entry = next_schedule(config)
         video_path = config["videos"][entry["video"]]
+        join_at = scheduled_at - timedelta(
+            seconds=before_video_seconds(config)
+        )
 
-        print(f"다음 방송: {scheduled_at:%Y-%m-%d %H:%M:%S}")
+        print(f"예정된 영상 공유 시각: {scheduled_at:%Y-%m-%d %H:%M:%S}")
+        print(f"방송 프로그램 실행 시각: {join_at:%Y-%m-%d %H:%M:%S}")
         print(f"동영상 {entry['video']}: {video_path}")
 
         while True:
-            remaining = (scheduled_at - datetime.now()).total_seconds()
+            remaining = (join_at - datetime.now()).total_seconds()
             if remaining <= 0:
                 break
 
@@ -113,15 +129,15 @@ def main() -> None:
             minutes, seconds = divmod(remainder, 60)
 
             print(
-                f"방송 시작까지 {days}일 "
+                f"Meet 입장 까지 {days}일 "
                 f"{hours:02d}시간 "
                 f"{minutes:02d}분 "
                 f"{seconds:02d}초 남았습니다."
             )
             time.sleep(1)
 
-        print("예약 시간이 되었습니다.")
-        print(f"동영상 {entry['video']} 방송을 시작합니다.")
+        print("Meet 입장 준비 시각이 되었습니다.")
+        print(f"동영상 {entry['video']} 방송을 준비합니다.")
 
         try:
             subprocess.run(
