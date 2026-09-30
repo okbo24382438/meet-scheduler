@@ -21,6 +21,14 @@ comment 폴더의 파일들을 Git에 올릴 준비를 해:
 여기까지 하면 파일 3개가 GitHub에 올라가고, 해당 커밋에 v0.3.4 태그도 생겨. 
 
 
+
+결제 내역: https://github.com/settings/billing/summary
+
+사용량: https://github.com/settings/billing/usage
+
+Copilot 구독 설정: https://github.com/settings/copilot
+
+
 //모든 크롬 종료
 taskkill /F /IM chrome.exe
 
