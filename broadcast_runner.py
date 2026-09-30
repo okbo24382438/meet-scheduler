@@ -5,6 +5,8 @@ import time
 import urllib.request
 import os
 import psutil
+import sys
+import shutil
 
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -14,11 +16,62 @@ from typing import Any
 from urllib.parse import quote
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
-from scheduler import load_config, next_schedule, validate_config
+from scheduler import (
+    load_config,
+    next_schedule,
+    validate_config,
+    validate_video_path,
+)
 
-
-CONFIG_FILE = Path("schedule.json")
 AUTH_FILE = Path(".auth/google_state.json")
+
+APP_DIR = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent
+)
+CONFIG_FILE = APP_DIR / "schedule.json"
+
+def get_automation_profile_path() -> Path:
+    return (APP_DIR / "OKBO_automation").resolve()
+
+# Google Chrome 실행 파일 경로를 찾는 함수
+def find_chrome_executable() -> Path:
+    candidates = []
+
+    for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
+        base_directory = os.environ.get(variable)
+        if base_directory:
+            candidates.append(
+                Path(base_directory)
+                / "Google"
+                / "Chrome"
+                / "Application"
+                / "chrome.exe"
+            )
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        candidates.append(
+            Path(local_app_data)
+            / "Google"
+            / "Chrome"
+            / "Application"
+            / "chrome.exe"
+        )
+
+    path_chrome = shutil.which("chrome")
+    if path_chrome:
+        candidates.append(Path(path_chrome))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+
+    raise FileNotFoundError(
+        "Google Chrome을 찾을 수 없습니다. "
+        "Chrome을 설치한 뒤 다시 실행하세요."
+    )
 
 # 기존 자동화 Chrome 프로세스를 종료하는 함수
 # 크롬 생성전에 기존의 잔재 프로세스를 종료합니다.
@@ -85,10 +138,13 @@ def stop_existing_automation_chrome(profile_path: Path) -> None:
 
 # 파이썬에서 자동화용 Chrome을 실행하는 함수
 def start_chrome_for_automation(capture_title: str) -> None:
-    chrome_path = Path(
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-    )
-    profile_path = Path("OKBO_automation").resolve()
+    try:
+        chrome_path = find_chrome_executable()
+    except FileNotFoundError:
+        print("GUI_ERROR:CHROME_NOT_FOUND", flush=True)
+        raise
+    profile_path = get_automation_profile_path()
+    profile_path.mkdir(parents=True, exist_ok=True)
 
     stop_existing_automation_chrome(profile_path)
 
@@ -361,7 +417,8 @@ def _run_broadcast_core(config: dict[str, Any], video_id: str) -> None:
             turn_camera_off(meet_page)
         switch_to_current_device(meet_page)
         print("현재 Meet URL:", meet_page.url)
-        enter_guest_name(meet_page, "옥보")
+        nickname = str(config.get("nickname") or "방송 진행자").strip()
+        enter_guest_name(meet_page, nickname)
         click_join_button(meet_page)
         
 
@@ -431,7 +488,7 @@ def _run_broadcast_core(config: dict[str, Any], video_id: str) -> None:
 
 # 방송 실행기 진입점, 예외 처리 및 부가 기능 담당
 def run_broadcast(config: dict[str, Any], video_id: str) -> None:
-    profile_path = Path("OKBO_automation").resolve()
+    profile_path = get_automation_profile_path()
 
     try:
         _run_broadcast_core(config, video_id)
@@ -445,10 +502,11 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=CONFIG_FILE)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run-now", action="store_true")
-    parser.add_argument("--video", choices=["1", "2", "3", "4", "5"])
+    parser.add_argument("--video", choices=[str(number) for number in range(1, 11)],)
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config_path = args.config.resolve()
+    config = load_config(config_path)
     validate_config(config)
     before_video_seconds, after_video_seconds, is_test_mode = active_timing(config)
 
@@ -468,6 +526,7 @@ def main() -> None:
         return
 
     print(f"동영상 {video_id} 방송을 시작합니다.")
+    validate_video_path(config, video_id)
     run_broadcast(config, video_id)
 
 

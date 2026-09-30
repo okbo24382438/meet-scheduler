@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-CONFIG_FILE = Path("schedule.json")
+# 요일 상수
 WEEKDAYS = (
     "monday",
     "tuesday",
@@ -20,7 +20,17 @@ WEEKDAYS = (
     "sunday",
 )
 
-#
+# 애플리케이션 디렉토리와 설정 파일 경로를 결정합니다.
+def get_app_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+APP_DIR = get_app_dir()
+CONFIG_FILE = APP_DIR / "schedule.json"
+
+# 설정 파일을 읽는 함수
 def load_config(path: Path = CONFIG_FILE) -> dict[str, Any]:
     with path.open(encoding="utf-8") as config_file:
         return json.load(config_file)
@@ -40,9 +50,6 @@ def parse_schedule_time(time_text: str):
 # 스케줄 JSON 파일을 검증하는 함수
 def validate_config(config: dict[str, Any]) -> None:
     videos = config["videos"]
-    for video_id, video_path in videos.items():
-        if not Path(video_path).is_file():
-            raise FileNotFoundError(f"동영상 파일을 찾을 수 없습니다: {video_path}")
 
     for day_name, entries in config["schedule"].items():
         times = [entry["time"] for entry in entries]
@@ -55,7 +62,22 @@ def validate_config(config: dict[str, Any]) -> None:
                 )
             parse_schedule_time(entry["time"])
 
+# 선택 영상 경로가 유효한지 검증하는 함수
+def validate_video_path(
+    config: dict[str, Any],
+    video_id: str,
+) -> Path:
+    path_text = str(config.get("videos", {}).get(video_id, "")).strip()
+    if not path_text:
+        raise ValueError(f"영상 {video_id}의 경로가 등록되지 않았습니다.")
 
+    video_path = Path(path_text)
+    if not video_path.is_file():
+        raise FileNotFoundError(
+            f"영상 {video_id} 파일을 찾을 수 없습니다: {video_path}"
+        )
+
+    return video_path.resolve()
 
 # 다음 방송 일정을 계산하는 함수
 def next_schedule(
@@ -94,12 +116,22 @@ def main() -> None:
     parser.add_argument(
         "--config", type=Path, default=CONFIG_FILE, help="스케줄 JSON 경로"
     )
+    parser.add_argument(
+        "--stop-file", type=Path, help="스케줄러 중지 요청 파일"
+    )
+
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    stop_file = args.stop_file.resolve() if args.stop_file else None
+
+    def stop_requested() -> bool:
+        return stop_file is not None and stop_file.exists()
+
+    config_path = args.config.resolve()
+    config = load_config(config_path)
 
     logging.basicConfig(
-        filename="scheduler.log",
+        filename=str(APP_DIR / "scheduler.log"),
         encoding="utf-8",
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -108,6 +140,10 @@ def main() -> None:
     validate_config(config)
 
     while True:
+        if stop_requested():
+            print("스케줄러 중지 요청을 확인했습니다.")
+            return
+                
         scheduled_at, entry = next_schedule(config)
         video_path = config["videos"][entry["video"]]
         join_at = scheduled_at - timedelta(
@@ -119,6 +155,10 @@ def main() -> None:
         print(f"동영상 {entry['video']}: {video_path}")
 
         while True:
+            if stop_requested():
+                print("스케줄러 중지 요청을 확인했습니다.")
+                return
+
             remaining = (join_at - datetime.now()).total_seconds()
             if remaining <= 0:
                 break
@@ -139,23 +179,52 @@ def main() -> None:
         print("Meet 입장 준비 시각이 되었습니다.")
         print(f"동영상 {entry['video']} 방송을 준비합니다.")
 
+        if stop_requested():
+            return
         try:
-            subprocess.run(
+            video_path = validate_video_path(config, entry["video"])
+            print(f"동영상 {entry['video']}: {video_path}")
+
+            runner_path = APP_DIR / (
+                "broadcast_runner.exe"
+                if getattr(sys, "frozen", False)
+                else "broadcast_runner.py"
+            )
+
+            if getattr(sys, "frozen", False):
+                command = [str(runner_path)]
+            else:
+                command = [sys.executable, str(runner_path)]
+
+            command.extend(
                 [
-                    sys.executable,
-                    "broadcast_runner.py",
+                    "--config",
+                    str(config_path),
                     "--run-now",
                     "--video",
                     entry["video"],
-                ],
-                check=True,
+                ]
             )
+
+            subprocess.run(
+                command,
+                check=True,
+                cwd=APP_DIR,
+            )
+        except (FileNotFoundError, ValueError) as error:
+            message = (
+                f"방송 건너뜀: 예약 시각={scheduled_at}, "
+                f"영상={entry['video']}, 사유={error}"
+            )
+            print(message, flush=True)
+            logging.error(message)
+            continue            
         except subprocess.CalledProcessError as error:
             message = (
                 f"방송 실패: 예약 시각={scheduled_at}, "
                 f"영상={entry['video']}, 종료 코드={error.returncode}"
             )
-            print(message)
+            print(message, flush=True)
             logging.error(message)
             continue
 

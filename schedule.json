@@ -3,6 +3,7 @@
   "mode_description": "real 운영 모드,  test 테스트 모드",
   "meeting_url_real": "https://meet.google.com/bax-ecap-ifm",
   "meeting_url_test": "https://meet.google.com/xqw-jjmo-hdt",
+  "nickname": "방송 진행자",
   "timezone": "local",
   "timing": {
     "real": {
@@ -34,11 +35,11 @@
     "3": "C:\\Work\\work_meet\\movie\\movie_3.mp4",
     "4": "C:\\Work\\work_meet\\movie\\movie_4.mp4",
     "5": "C:\\Work\\work_meet\\movie\\movie_5.mp4",
-    "6": "C:\\Work\\work_meet\\movie\\movie_1.mp4",
-    "7": "C:\\Work\\work_meet\\movie\\movie_2.mp4",
-    "8": "C:\\Work\\work_meet\\movie\\movie_3.mp4",
-    "9": "C:\\Work\\work_meet\\movie\\movie_4.mp4",
-    "10": "C:\\Work\\work_meet\\movie\\movie_5.mp4"
+    "6": "C:/Work/work_meet/movie/sample-5mb-1.mp4",
+    "7": "C:/Work/work_meet/movie/sample-5mb-2.mp4",
+    "8": "C:/Work/work_meet/movie/sample-5mb-3.mp4",
+    "9": "C:/Work/work_meet/movie/sample-5mb-4.mp4",
+    "10": "C:/Work/work_meet/movie/sample-5mb-5.mp4"
   },
   "schedule": {
     "monday": [

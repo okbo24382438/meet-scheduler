@@ -3,12 +3,12 @@ import os
 import sys
 import tempfile
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from PyQt6.QtCore import QTime, Qt
+from PyQt6.QtCore import QProcess, QTime, Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -35,11 +35,19 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QCheckBox,
 )
 
 
-# GUI 위치를 기준으로 프로젝트 루트의 schedule.json을 찾습니다.
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "schedule.json"
+# 애플리케이션 디렉토리와 설정 파일 경로를 결정합니다.
+def get_app_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+APP_DIR = get_app_dir()
+CONFIG_PATH = APP_DIR / "schedule.json"
 
 WEEKDAYS = (
     ("monday", "월요일"),
@@ -134,7 +142,28 @@ class MeetSchedulerWindow(QMainWindow):
 
         self.schedule_tables: dict[str, QTableWidget] = {}
         self.video_path_edits: dict[str, QLineEdit] = {}
+        self.video_delete_checks: dict[str, QCheckBox] = {}
         self.video_combos: list[QComboBox] = []
+
+        self.scheduler_process = QProcess(self)
+        self.scheduler_process.setWorkingDirectory(str(APP_DIR))
+        self.scheduler_process.setProcessChannelMode(
+            QProcess.ProcessChannelMode.MergedChannels
+        )
+        self.scheduler_output_buffer = ""
+        self.chrome_install_warning_shown = False
+
+        self.scheduler_process.readyReadStandardOutput.connect(
+            self.on_scheduler_output
+        )
+        self.scheduler_process.started.connect(self.on_scheduler_started)
+        self.scheduler_process.finished.connect(self.on_scheduler_finished)
+        self.scheduler_process.errorOccurred.connect(self.on_scheduler_error)
+
+        self.countdown_timer = QTimer(self)
+        self.countdown_timer.setInterval(1000)
+        self.countdown_timer.timeout.connect(self.refresh_next_broadcast)
+
 
         self.setWindowTitle("Meet 방송 스케줄러")
         self.setMinimumSize(1050, 700)
@@ -196,6 +225,8 @@ class MeetSchedulerWindow(QMainWindow):
 
         self.build_ui()
         self.populate_ui(self.config)
+        self.refresh_next_broadcast()
+        self.countdown_timer.start()        
 
     # 왼쪽 메뉴와 세 개의 화면을 구성하고 버튼을 연결합니다.
     def build_ui(self) -> None:
@@ -262,13 +293,193 @@ class MeetSchedulerWindow(QMainWindow):
         # 새로고침과 저장 버튼에 각각 실제 처리를 연결합니다.
         self.reload_button.clicked.connect(self.reload_config)
         self.save_button.clicked.connect(self.save_config)
+        self.start_scheduler_button.clicked.connect(self.start_scheduler)
+        self.stop_scheduler_button.clicked.connect(self.stop_scheduler)
         self.statusBar().showMessage(str(self.config_path))
+
+    
+    # 스케줄러 시작 함수
+    def start_scheduler(self) -> None:
+        if self.scheduler_process.state() != QProcess.ProcessState.NotRunning:
+            return
+
+        stop_file = APP_DIR / "scheduler.stop"
+        stop_file.unlink(missing_ok=True)
+
+        if getattr(sys, "frozen", False):
+            program = str(APP_DIR / "scheduler.exe")
+            arguments = []
+        else:
+            program = sys.executable
+            arguments = [str(APP_DIR / "scheduler.py")]
+
+        arguments.extend([
+            "--config", str(self.config_path.resolve()),
+            "--stop-file", str(stop_file),
+        ])
+
+        self.scheduler_output_buffer = ""
+        self.chrome_install_warning_shown = False
+        self.scheduler_process.start(program, arguments)
+
+    # 스케줄러 중지 함수
+    def stop_scheduler(self) -> None:
+        if self.scheduler_process.state() == QProcess.ProcessState.NotRunning:
+            return
+
+        stop_file = APP_DIR / "scheduler.stop"
+        try:
+            stop_file.touch(exist_ok=True)
+            self.scheduler_status_label.setText(
+                "방송 종료 후 스케줄러 중지"
+            )
+            self.stop_scheduler_button.setEnabled(False)
+        except OSError as error:
+            QMessageBox.warning(self, "중지 요청 실패", str(error))
+
+    # 스케줄러 시작/중지 상태 갱신 함수
+    def on_scheduler_started(self) -> None:
+        self.scheduler_status_label.setText("예약 감시 중")
+        self.start_scheduler_button.setEnabled(False)
+        self.stop_scheduler_button.setEnabled(True)
+
+    # 스케줄러 시작/중지 상태 갱신 함수 끝
+    def on_scheduler_finished(self, exit_code, exit_status) -> None:
+        if not self.chrome_install_warning_shown:
+            self.scheduler_status_label.setText(
+                "스케줄러 중지" if exit_code == 0 else "스케줄러 오류"
+            ) 
+        self.start_scheduler_button.setEnabled(True)
+        self.stop_scheduler_button.setEnabled(False)
+
+    # 스케줄러 에러 상태 갱신 함수 끝
+    def on_scheduler_error(self, error) -> None:
+        self.scheduler_status_label.setText("스케줄러 실행 오류")
+        self.start_scheduler_button.setEnabled(True)
+        self.stop_scheduler_button.setEnabled(False)
+
+    # 스케줄러 출력 처리 함수
+    def on_scheduler_output(self) -> None:
+        output = bytes(
+            self.scheduler_process.readAllStandardOutput()
+        ).decode("utf-8", errors="replace")
+        self.scheduler_output_buffer += output
+
+        while "\n" in self.scheduler_output_buffer:
+            line, self.scheduler_output_buffer = (
+                self.scheduler_output_buffer.split("\n", 1)
+            )
+            self.handle_scheduler_output_line(line.rstrip("\r"))
+
+    # 스케줄러 출력 한 줄 처리 함수
+    def handle_scheduler_output_line(self, line: str) -> None:
+        if "GUI_ERROR:CHROME_NOT_FOUND" in line:
+            if self.chrome_install_warning_shown:
+                return
+
+            self.chrome_install_warning_shown = True
+            self.scheduler_status_label.setText("Chrome 설치 필요")
+            QMessageBox.warning(
+                self,
+                "Google Chrome을 찾을 수 없습니다",
+                "Google Chrome 설치를 확인한 뒤 다시 시작하세요. "
+                "시스템 전체 설치 또는 사용자별 설치가 되어 있어야 합니다.",
+            )
+            return
+
+        if line.startswith(("방송 건너뜀:", "방송 실패:")):
+            self.statusBar().showMessage(line, 10000)
+
+
+    # 다음 방송 정보 갱신 함수
+    def refresh_next_broadcast(self) -> None:
+        now = datetime.now()
+        candidates = []
+
+        for day_offset in range(8):
+            candidate_date = now.date() + timedelta(days=day_offset)
+            day_key = WEEKDAYS[candidate_date.weekday()][0]
+            entries = self.config.get("schedule", {}).get(day_key, [])
+
+            if not isinstance(entries, list):
+                continue
+
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+
+                try:
+                    normalized_time = normalize_time(str(entry.get("time", "")))
+                    scheduled_time = datetime.strptime(
+                        normalized_time, "%H:%M:%S"
+                    ).time()
+                except ValueError:
+                    continue
+
+                scheduled_at = datetime.combine(candidate_date, scheduled_time)
+                if scheduled_at >= now:
+                    candidates.append((scheduled_at, entry))
+
+        if not candidates:
+            self.next_broadcast_label.setText("등록된 일정 없음")
+            return
+
+        scheduled_at, entry = min(candidates, key=lambda item: item[0])
+
+        try:
+            mode = self.config.get("mode")
+            if mode == "test":
+                lead_seconds = int(
+                    self.config["timing"]["test"]["before_video_seconds"]
+                )
+            elif mode == "real":
+                lead_seconds = (
+                    int(self.config["timing"]["real"]["before_video_minutes"])
+                    * 60
+                )
+            else:
+                raise ValueError("지원하지 않는 방송 모드입니다.")
+        except (KeyError, TypeError, ValueError):
+            self.next_broadcast_label.setText("방송 대기 시간 설정을 확인하세요.")
+            return
+
+        remaining = max(0, int((scheduled_at - now).total_seconds()))
+        days, remainder = divmod(remaining, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        countdown = f"{days}일 {hours:02}:{minutes:02}:{seconds:02}"
+        prepare_at = scheduled_at - timedelta(seconds=lead_seconds)
+        broadcast_name = str(entry.get("broadcast_name", "이름 미입력"))
+
+        self.next_broadcast_label.setText(
+            f"다음 방송: {broadcast_name} | "
+            f"동영상 공유 시작: {scheduled_at:%Y-%m-%d %H:%M:%S} | "
+            f"남은 시간: {countdown} | "
+            f"Meet 준비 시작: {prepare_at:%Y-%m-%d %H:%M:%S}"
+        )
 
     # 첫 번째 메뉴의 읽기 전용 주간 일정 화면을 만듭니다.
     def build_schedule_overview_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        # 스케줄러 상태 및 다음 방송 정보 표시 영역
+        status_layout = QHBoxLayout()
+        self.scheduler_status_label = QLabel("스케줄러 중지")
+        self.start_scheduler_button = QPushButton("시작")
+        self.stop_scheduler_button = QPushButton("중지")
+        self.stop_scheduler_button.setEnabled(False)
 
+        status_layout.addWidget(self.scheduler_status_label)
+        status_layout.addStretch()
+        status_layout.addWidget(self.start_scheduler_button)
+        status_layout.addWidget(self.stop_scheduler_button)
+        layout.addLayout(status_layout)
+
+        self.next_broadcast_label = QLabel("다음 방송 정보를 불러오는 중")
+        self.next_broadcast_label.setMinimumHeight(48)
+        layout.addWidget(self.next_broadcast_label)
+
+        # 방송 리스트 영역
         self.overview_tree = QTreeWidget()
         self.overview_tree.setColumnCount(3)
         self.overview_tree.setHeaderLabels(
@@ -322,6 +533,15 @@ class MeetSchedulerWindow(QMainWindow):
         schedule_scroll.setWidget(schedule_content)
         page_layout.addWidget(schedule_scroll, 1)
         return page
+
+
+    # 체크된 동영상을 삭제하는 기능을 구현합니다.
+    def delete_checked_videos(self) -> None:
+        for video_id, checkbox in self.video_delete_checks.items():
+            if checkbox.isChecked():
+                self.video_path_edits[video_id].clear()
+                checkbox.setChecked(False)
+
 
     # 요일별 일정 표와 추가·삭제 버튼을 구성합니다.
     def build_weekday_editor_group(
@@ -434,16 +654,21 @@ class MeetSchedulerWindow(QMainWindow):
             "https://meet.google.com/..."
         )
         meeting_form.addRow("운영 Meet 주소", self.meeting_url_edit)
-
+        self.broadcast_nickname_edit = QLineEdit()
+        self.broadcast_nickname_edit.setPlaceholderText("방송 진행자")
+        meeting_form.addRow(
+            "방송 참여 대화명",
+            self.broadcast_nickname_edit,
+        )
         self.before_minutes_spin = self.make_minute_input()
         meeting_form.addRow(
-            "방송 시작 전 대화",
+            "동영상 시작 전 대기",
             self.wrap_minute_input(self.before_minutes_spin),
         )
 
         self.after_minutes_spin = self.make_minute_input()
         meeting_form.addRow(
-            "방송 종료 후 대화",
+            "동영상 종료 후 대기",
             self.wrap_minute_input(self.after_minutes_spin),
         )
 
@@ -452,6 +677,9 @@ class MeetSchedulerWindow(QMainWindow):
 
         for video_id in self.get_video_ids():
             row_layout = QHBoxLayout()
+            delete_check = QCheckBox()
+            self.video_delete_checks[video_id] = delete_check
+            row_layout.addWidget(delete_check)            
             row_layout.addWidget(QLabel(f"영상 {video_id}"))
 
             path_edit = QLineEdit()
@@ -468,6 +696,11 @@ class MeetSchedulerWindow(QMainWindow):
 
             # 경로를 바꾸면 일정 편집 화면의 영상 선택 항목도 갱신합니다.
             path_edit.textChanged.connect(self.refresh_video_combos)
+
+
+        delete_videos_button = QPushButton("체크한 동영상 삭제")
+        delete_videos_button.clicked.connect(self.delete_checked_videos)
+        videos_layout.addWidget(delete_videos_button)
 
         settings_layout.addWidget(meeting_group)
         settings_layout.addWidget(videos_group)
@@ -647,6 +880,9 @@ class MeetSchedulerWindow(QMainWindow):
         self.meeting_url_edit.setText(
             str(config.get("meeting_url_real", ""))
         )
+        self.broadcast_nickname_edit.setText(
+            str(config.get("nickname") or "방송 진행자")
+        )     
         self.before_minutes_spin.setValue(
             int(real_timing.get("before_video_minutes", 0))
         )
@@ -749,6 +985,10 @@ class MeetSchedulerWindow(QMainWindow):
             )
 
         candidate["meeting_url_real"] = meeting_url
+        nickname = self.broadcast_nickname_edit.text().strip()
+        if not nickname:
+            raise ValueError("방송 참여 대화명을 입력하세요.")
+        candidate["nickname"] = nickname        
         candidate.setdefault("timing", {}).setdefault("real", {})
         candidate["timing"]["real"]["before_video_minutes"] = (
             self.before_minutes_spin.value()
@@ -757,17 +997,27 @@ class MeetSchedulerWindow(QMainWindow):
             self.after_minutes_spin.value()
         )
 
-        # 화면의 영상 경로를 기존 영상 설정에 반영합니다.
-        candidate.setdefault("videos", {})
-        for video_id, path_edit in self.video_path_edits.items():
-            path_text = path_edit.text().strip()
-            if not path_text:
-                raise ValueError(f"영상 {video_id}의 경로를 입력하세요.")
-            if not Path(path_text).is_file():
-                raise FileNotFoundError(
-                    f"영상 {video_id} 파일을 찾을 수 없습니다:\n{path_text}"
-                )
-            candidate["videos"][video_id] = path_text
+        video_paths = {
+            video_id: path_edit.text().strip()
+            for video_id, path_edit in self.video_path_edits.items()
+        }
+        ordered_video_ids = [
+            video_id
+            for video_id in self.get_video_ids()
+            if video_paths[video_id]
+        ] + [
+            video_id
+            for video_id in self.get_video_ids()
+            if not video_paths[video_id]
+        ]
+        video_id_map = {
+            old_id: str(index)
+            for index, old_id in enumerate(ordered_video_ids, start=1)
+        }
+        candidate["videos"] = {
+            video_id_map[old_id]: video_paths[old_id]
+            for old_id in ordered_video_ids
+        }
 
         # 요일별 표에서 일정을 읽고 필수 입력과 중복 시각을 검사합니다.
         candidate.setdefault("schedule", {})
@@ -801,11 +1051,12 @@ class MeetSchedulerWindow(QMainWindow):
                     )
                 seen_times.add(time_value)
 
-                video_id = str(video_combo.currentData() or "")
-                if video_id not in candidate["videos"]:
+                old_video_id = str(video_combo.currentData() or "")
+                if old_video_id not in video_id_map:
                     raise ValueError(
                         f"{day_label} 일정의 영상 번호를 확인하세요."
                     )
+                video_id = video_id_map[old_video_id]
 
                 entries.append(
                     {
