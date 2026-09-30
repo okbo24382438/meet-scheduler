@@ -43,29 +43,29 @@
   "schedule": {
     "monday": [
       {
-        "broadcast_name": "새벽 타임",
-        "time": "05:55:00",
+        "broadcast_name": "새벽 방송",
+        "time": "06:00:00",
         "video": "1"
       },
       {
-        "broadcast_name": "새벽 타임",
-        "time": "10:25:00",
-        "video": "2"
+        "broadcast_name": "오전 방송",
+        "time": "10:30:00",
+        "video": "1"
       },
       {
-        "broadcast_name": "밤 타임",
-        "time": "22:54:59",
-        "video": "3"
+        "broadcast_name": "오후 방송",
+        "time": "15:00:00",
+        "video": "1"
       },
       {
-        "broadcast_name": "밤 타임",
-        "time": "22:55:59",
-        "video": "4"
+        "broadcast_name": "저녁 방송",
+        "time": "20:00:00",
+        "video": "1"
       },
       {
-        "broadcast_name": "밤 타임",
-        "time": "22:57:59",
-        "video": "5"
+        "broadcast_name": "밤 방송",
+        "time": "23:00:00",
+        "video": "1"
       }
     ],
     "tuesday": [
@@ -80,7 +80,7 @@
         "video": "2"
       },
       {
-        "broadcast_name": "점심 타임",  
+        "broadcast_name": "점심 타임",
         "time": "12:59:59",
         "video": "3"
       },
@@ -99,12 +99,12 @@
       {
         "broadcast_name": "새벽 타임",
         "time": "05:55:00",
-        "video": "1"
+        "video": "2"
       },
       {
         "broadcast_name": "아침 타임",
         "time": "10:25:00",
-        "video": "2"
+        "video": "4"
       },
       {
         "broadcast_name": "점심 타임",
@@ -114,7 +114,7 @@
       {
         "broadcast_name": "저녁 타임",
         "time": "19:55:00",
-        "video": "4"
+        "video": "2"
       },
       {
         "broadcast_name": "밤 타임",
