@@ -40,3 +40,23 @@ python broadcast_runner.py --run-now --video 1
 //스캐줄러 실행 명령어
 python .\gui\gui_dev.py
 python .\scheduler.py --config .\schedule.json
+
+
+
+//exe 실행 빌드
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name MeetScheduler --distpath .\release\v0.5.2 --workpath .\build\MeetScheduler .\gui\gui_dev.py
+
+python -m PyInstaller --noconfirm --clean --onefile --console --name scheduler --distpath .\release\v0.5.2 --workpath .\build\scheduler .\scheduler.py
+
+python -m PyInstaller --noconfirm --clean --onefile --console --name broadcast_runner --collect-all playwright --distpath .\release\v0.5.2 --workpath .\build\broadcast_runner .\broadcast_runner.py
+
+//이미지, json 복사
+(.venv) PS C:\Users\schna\meet_scheduler> Copy-Item .\schedule.json .\release\v0.5.2\
+(.venv) PS C:\Users\schna\meet_scheduler> New-Item -ItemType Directory -Force .\release\v0.5.2\img | Out-Null
+(.venv) PS C:\Users\schna\meet_scheduler> Copy-Item .\img\bg_3.jpg .\release\v0.5.2\img\
+
+
+//설치 파일 만들기
+Test-Path .\MeetScheduler.iss
+New-Item -ItemType Directory -Force .\release\installer | Out-Null
+& "C:\Program Files\Inno Setup 7\ISCC.exe" .\MeetScheduler.iss

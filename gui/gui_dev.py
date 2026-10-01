@@ -118,6 +118,14 @@ def normalize_time(value: str) -> str:
         f"시간 형식이 올바르지 않습니다: {value} (HH:MM 또는 HH:MM:SS)"
     )
 
+# 한국어 형식으로 날짜와 시간을 문자열로 변환합니다.
+def format_korean_datetime(value: datetime) -> str:
+    period = "오전" if value.hour < 12 else "오후"
+    hour = value.hour % 12 or 12
+    return (
+        f"{value.year}년 {value.month}월 {value.day}일 "
+        f"{period} {hour}시 {value.minute}분 {value.second}초"
+    )
 
 # 주요 GUI 화면과 설정 편집 동작을 관리합니다.
 class MeetSchedulerWindow(QMainWindow):
@@ -248,6 +256,38 @@ class MeetSchedulerWindow(QMainWindow):
                 "방송 설정",
             ]
         )
+
+
+# START 배경이미지 추가
+        image_path = (APP_DIR / "img/bg_3.jpg").as_posix()
+        self.navigation.setStyleSheet(
+            f"""
+            QListWidget {{
+                background-color: #202b35;
+                background-image: url("{image_path}");
+                background-repeat: no-repeat;
+                background-position: bottom center;
+                color: #f4f6f8;
+                border: 0;
+                padding: 8px;
+                font-size: 14px;
+            }}
+
+            QListWidget::item {{
+                background-color: transparent;
+                padding: 13px 10px;
+                border-radius: 4px;
+            }}
+
+            QListWidget::item:selected {{
+                background-color: #D9ECF5;
+                color: #20343B;
+            }}
+            """
+        )
+# END 배경이미지 추가
+
+
         root_layout.addWidget(self.navigation)
 
         content = QWidget()
@@ -341,7 +381,10 @@ class MeetSchedulerWindow(QMainWindow):
 
     # 스케줄러 시작/중지 상태 갱신 함수
     def on_scheduler_started(self) -> None:
-        self.scheduler_status_label.setText("예약 감시 중")
+        self.scheduler_status_label.setStyleSheet("color: #1565C0; font-weight: bold;")
+        self.scheduler_status_label.setText(
+            "작동 중입니다. 시간이 되면 방송이 자동 시작됩니다."
+        )
         self.start_scheduler_button.setEnabled(False)
         self.stop_scheduler_button.setEnabled(True)
 
@@ -351,8 +394,11 @@ class MeetSchedulerWindow(QMainWindow):
         self.restart_scheduler_after_exit = False
 
         if not should_restart and not self.chrome_install_warning_shown:
+            self.scheduler_status_label.setStyleSheet("color: #C62828; font-weight: bold;")
             self.scheduler_status_label.setText(
-                "스케줄러 중지" if exit_code == 0 else "스케줄러 오류"
+                "중지 중입니다. 방송은 자동 시작되지 않습니다."
+                if exit_code == 0
+                else "스케줄러 오류"
             )
 
         self.start_scheduler_button.setEnabled(True)
@@ -461,10 +507,10 @@ class MeetSchedulerWindow(QMainWindow):
         broadcast_name = str(entry.get("broadcast_name", "이름 미입력"))
 
         self.next_broadcast_label.setText(
-            f"다음 방송: {broadcast_name} | "
-            f"동영상 공유 시작: {scheduled_at:%Y-%m-%d %H:%M:%S} | "
-            f"남은 시간: {countdown} | "
-            f"Meet 준비 시작: {prepare_at:%Y-%m-%d %H:%M:%S}"
+            "<b>[ 다음 방송 ]</b><br>"
+            f"  {broadcast_name} | 남은 시간 : {countdown}<br>"
+            f"  참여 시각 : {format_korean_datetime(prepare_at)} | "
+            f"동영상 공유 시작 : {format_korean_datetime(scheduled_at)}"
         )
 
     # 첫 번째 메뉴의 읽기 전용 주간 일정 화면을 만듭니다.
@@ -473,11 +519,24 @@ class MeetSchedulerWindow(QMainWindow):
         layout = QVBoxLayout(page)
         # 스케줄러 상태 및 다음 방송 정보 표시 영역
         status_layout = QHBoxLayout()
-        self.scheduler_status_label = QLabel("스케줄러 중지")
+        self.scheduler_status_title = QLabel("스케줄러 상태 :")
+        self.scheduler_status_title.setStyleSheet(
+            """
+            background-color: #D9ECF5;
+            color: #20343B;
+            padding: 5px 8px;
+            font-weight: bold;
+            """
+        )        
+        self.scheduler_status_label = QLabel(
+            "중지 중입니다. 방송은 자동 시작되지 않습니다."
+        )
+        self.scheduler_status_label.setStyleSheet("color: #C62828; font-weight: bold;")
         self.start_scheduler_button = QPushButton("시작")
         self.stop_scheduler_button = QPushButton("중지")
         self.stop_scheduler_button.setEnabled(False)
 
+        status_layout.addWidget(self.scheduler_status_title)
         status_layout.addWidget(self.scheduler_status_label)
         status_layout.addStretch()
         status_layout.addWidget(self.start_scheduler_button)
@@ -485,7 +544,8 @@ class MeetSchedulerWindow(QMainWindow):
         layout.addLayout(status_layout)
 
         self.next_broadcast_label = QLabel("다음 방송 정보를 불러오는 중")
-        self.next_broadcast_label.setMinimumHeight(48)
+        self.next_broadcast_label.setMinimumHeight(56)
+        self.next_broadcast_label.setWordWrap(True)
         layout.addWidget(self.next_broadcast_label)
 
         # 방송 리스트 영역
@@ -662,7 +722,7 @@ class MeetSchedulerWindow(QMainWindow):
         self.meeting_url_edit.setPlaceholderText(
             "https://meet.google.com/..."
         )
-        meeting_form.addRow("운영 Meet 주소", self.meeting_url_edit)
+        meeting_form.addRow("방송 Meet 주소", self.meeting_url_edit)
         self.broadcast_nickname_edit = QLineEdit()
         self.broadcast_nickname_edit.setPlaceholderText("방송 진행자")
         meeting_form.addRow(

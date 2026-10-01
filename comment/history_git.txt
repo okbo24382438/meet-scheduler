@@ -65,3 +65,20 @@ Meet에서 동영상 공유
 공유 중지
       ↓
 방송 종료
+
+
+
+git status --short
+git add -- <수정한 파일 경로들>
+
+
+git diff --cached --check
+git diff --cached
+
+
+git commit -m "Release v0.5.2"
+git tag -a v0.5.2 -m "Release v0.5.2"
+git status --short
+
+git push origin main
+git push origin v0.5.2
