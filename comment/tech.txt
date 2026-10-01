@@ -36,3 +36,7 @@ taskkill /F /IM chrome.exe
 python .\scheduler.py
 //스캐줄러 비디오 1번만 방송하는 수동 명령어
 python broadcast_runner.py --run-now --video 1
+
+//스캐줄러 실행 명령어
+python .\gui\gui_dev.py
+python .\scheduler.py --config .\schedule.json

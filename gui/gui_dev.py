@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import subprocess
 from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -152,6 +153,7 @@ class MeetSchedulerWindow(QMainWindow):
         )
         self.scheduler_output_buffer = ""
         self.chrome_install_warning_shown = False
+        self.restart_scheduler_after_exit = False
 
         self.scheduler_process.readyReadStandardOutput.connect(
             self.on_scheduler_output
@@ -343,14 +345,21 @@ class MeetSchedulerWindow(QMainWindow):
         self.start_scheduler_button.setEnabled(False)
         self.stop_scheduler_button.setEnabled(True)
 
-    # 스케줄러 시작/중지 상태 갱신 함수 끝
+    # 스케줄러 종료 후 상태를 갱신하고, 필요하면 새 설정으로 재시작합니다.
     def on_scheduler_finished(self, exit_code, exit_status) -> None:
-        if not self.chrome_install_warning_shown:
+        should_restart = self.restart_scheduler_after_exit
+        self.restart_scheduler_after_exit = False
+
+        if not should_restart and not self.chrome_install_warning_shown:
             self.scheduler_status_label.setText(
                 "스케줄러 중지" if exit_code == 0 else "스케줄러 오류"
-            ) 
+            )
+
         self.start_scheduler_button.setEnabled(True)
         self.stop_scheduler_button.setEnabled(False)
+
+        if should_restart:
+            self.start_scheduler()
 
     # 스케줄러 에러 상태 갱신 함수 끝
     def on_scheduler_error(self, error) -> None:
@@ -1084,6 +1093,10 @@ class MeetSchedulerWindow(QMainWindow):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
+        scheduler_was_running = (
+            self.scheduler_process.state()
+            != QProcess.ProcessState.NotRunning
+        )            
         try:
             candidate = self.collect_config()
             write_config_atomically(self.config_path, candidate)
@@ -1094,6 +1107,12 @@ class MeetSchedulerWindow(QMainWindow):
                 "저장 완료",
                 f"변경 사항을 저장했습니다.^^",
             )
+            if scheduler_was_running:
+                self.restart_scheduler_after_exit = True
+                self.stop_scheduler()
+                self.scheduler_status_label.setText(
+                    "새 설정 적용을 위해 스케줄러 재시작 중"
+                )            
         except (OSError, ValueError, TypeError) as error:
             QMessageBox.warning(self, "저장할 수 없습니다", str(error))
 
@@ -1120,6 +1139,28 @@ class MeetSchedulerWindow(QMainWindow):
                 "불러오기 실패",
                 str(error),
             )
+
+    # GUI 창을 닫을 때 스케줄러 프로세스를 종료합니다.
+    def closeEvent(self, event) -> None:
+        if self.scheduler_process.state() != QProcess.ProcessState.NotRunning:
+            process_id = int(self.scheduler_process.processId())
+
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(process_id), "/T", "/F"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+
+            if self.scheduler_process.state() != QProcess.ProcessState.NotRunning:
+                self.scheduler_process.kill()
+                self.scheduler_process.waitForFinished(3000)
+
+        event.accept()
 
     # 왼쪽 메뉴에 따라 제목과 저장 버튼 표시를 바꿉니다.
     def update_page_title(self, page_index: int) -> None:
