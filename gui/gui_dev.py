@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from PyQt6.QtCore import QProcess, QTime, Qt, QTimer
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -1234,6 +1234,8 @@ class MeetSchedulerWindow(QMainWindow):
 # GUI를 시작하고 초기 설정 오류를 표시합니다.
 def main() -> int:
     app = QApplication(sys.argv)
+    app_icon = QIcon(str(APP_DIR / "img" / "icon_meet_scheduler.ico"))
+    app.setWindowIcon(app_icon)    
 
     try:
         window = MeetSchedulerWindow()
