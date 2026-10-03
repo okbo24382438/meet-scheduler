@@ -3,10 +3,11 @@ import json
 import subprocess
 import time
 import sys
-import logging
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from log_manage import write_event
 
 
 # 요일 상수
@@ -130,13 +131,6 @@ def main() -> None:
     config_path = args.config.resolve()
     config = load_config(config_path)
 
-    logging.basicConfig(
-        filename=str(APP_DIR / "scheduler.log"),
-        encoding="utf-8",
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
-
     validate_config(config)
 
     while True:
@@ -182,6 +176,7 @@ def main() -> None:
         if stop_requested():
             return
         try:
+            broadcast_id = uuid.uuid4().hex
             video_path = validate_video_path(config, entry["video"])
             print(f"동영상 {entry['video']}: {video_path}")
 
@@ -203,6 +198,8 @@ def main() -> None:
                     "--run-now",
                     "--video",
                     entry["video"],
+                    "--broadcast-id",
+                    broadcast_id,
                 ]
             )
 
@@ -212,20 +209,36 @@ def main() -> None:
                 cwd=APP_DIR,
             )
         except (FileNotFoundError, ValueError) as error:
+            write_event(
+                "errors",
+                "video_validation_failed",
+                "scheduler",
+                phase="video_validation",
+                broadcast_id=broadcast_id,
+                video_id=entry["video"],
+                error_type=type(error).__name__,
+            )            
             message = (
                 f"방송 건너뜀: 예약 시각={scheduled_at}, "
                 f"영상={entry['video']}, 사유={error}"
             )
             print(message, flush=True)
-            logging.error(message)
             continue            
         except subprocess.CalledProcessError as error:
+            write_event(
+                "errors",
+                "broadcast_runner_failed",
+                "scheduler",
+                phase="broadcast_runner",
+                broadcast_id=broadcast_id,
+                video_id=entry["video"],
+                exit_code=error.returncode,
+            )            
             message = (
                 f"방송 실패: 예약 시각={scheduled_at}, "
                 f"영상={entry['video']}, 종료 코드={error.returncode}"
             )
             print(message, flush=True)
-            logging.error(message)
             continue
 
 

@@ -39,21 +39,24 @@ python broadcast_runner.py --run-now --video 1
 
 //스캐줄러 실행 명령어
 python .\gui\gui_dev.py
+//로그 버전 실행
+python -m gui.gui_dev 
 python .\scheduler.py --config .\schedule.json
 
 
 
 //exe 실행 빌드
-python -m PyInstaller --noconfirm --clean --onefile --windowed --name MeetScheduler --distpath .\release\v0.5.2 --workpath .\build\MeetScheduler .\gui\gui_dev.py
+python -m PyInstaller --noconfirm --clean --onefile --windowed --icon=.\img\icon_meet_scheduler.ico --name MeetScheduler --distpath .\release\v0.6.0 --workpath .\build\MeetScheduler .\gui\gui_dev.py
 
-python -m PyInstaller --noconfirm --clean --onefile --console --name scheduler --distpath .\release\v0.5.2 --workpath .\build\scheduler .\scheduler.py
+python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --name scheduler --distpath .\release\v0.6.0 --workpath .\build\scheduler .\scheduler.py
 
-python -m PyInstaller --noconfirm --clean --onefile --console --name broadcast_runner --collect-all playwright --distpath .\release\v0.5.2 --workpath .\build\broadcast_runner .\broadcast_runner.py
+python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --collect-all playwright --name broadcast_runner --distpath .\release\v0.6.0 --workpath .\build\broadcast_runner .\broadcast_runner.py
 
 //이미지, json 복사
-(.venv) PS C:\Users\schna\meet_scheduler> Copy-Item .\schedule.json .\release\v0.5.2\
-(.venv) PS C:\Users\schna\meet_scheduler> New-Item -ItemType Directory -Force .\release\v0.5.2\img | Out-Null
-(.venv) PS C:\Users\schna\meet_scheduler> Copy-Item .\img\bg_3.jpg .\release\v0.5.2\img\
+Copy-Item .\schedule.json .\release\v0.6.0\
+New-Item -ItemType Directory -Force .\release\v0.6.0\img | Out-Null
+Copy-Item .\img\bg_3.jpg .\release\v0.6.0\img\
+Copy-Item .\img\icon_meet_scheduler.ico .\release\v0.6.0\img\
 
 
 //설치 파일 만들기

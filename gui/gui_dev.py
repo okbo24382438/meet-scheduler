@@ -3,11 +3,14 @@ import os
 import sys
 import tempfile
 import subprocess
+import psutil
+
 from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from log_manage import write_event
 
 from PyQt6.QtCore import QProcess, QTime, Qt, QTimer
 from PyQt6.QtGui import QColor, QIcon
@@ -62,6 +65,53 @@ WEEKDAYS = (
 
 DEFAULT_VIDEO_IDS = tuple(str(number) for number in range(1, 11))
 
+# 기존 스케줄러 프로세스를 종료합니다.
+def terminate_existing_schedulers() -> bool:
+    expected_script = (APP_DIR / "scheduler.py").resolve()
+    expected_executable = (APP_DIR / "scheduler.exe").resolve()
+    matches = []
+
+    for process in psutil.process_iter(["exe", "cmdline"]):
+        try:
+            process_info = process.info
+            command_line = process_info["cmdline"] or []
+
+            if getattr(sys, "frozen", False):
+                executable = process_info["exe"] or (
+                    command_line[0] if command_line else None
+                )
+                if executable and Path(executable).resolve() == expected_executable:
+                    matches.append(process)
+            elif any(
+                Path(argument).resolve() == expected_script
+                for argument in command_line[1:]
+                if argument.lower().endswith(".py")
+            ):
+                matches.append(process)
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+            continue
+
+    if not matches:
+        return False
+
+    for process in matches:
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    _, still_running = psutil.wait_procs(matches, timeout=5)
+    if still_running:
+        raise RuntimeError("기존 스케줄러를 종료하지 못했습니다.")
+
+    return True
 
 # 설정 파일을 읽고 GUI가 사용하는 기본 구조를 확인합니다.
 def read_config(path: Path) -> dict[str, Any]:
@@ -377,6 +427,13 @@ class MeetSchedulerWindow(QMainWindow):
             )
             self.stop_scheduler_button.setEnabled(False)
         except OSError as error:
+            write_event(
+                "errors",
+                "scheduler_stop_request_failed",
+                "gui",
+                phase="scheduler_stop",
+                error_type=type(error).__name__,
+            )
             QMessageBox.warning(self, "중지 요청 실패", str(error))
 
     # 스케줄러 시작/중지 상태 갱신 함수
@@ -392,6 +449,14 @@ class MeetSchedulerWindow(QMainWindow):
     def on_scheduler_finished(self, exit_code, exit_status) -> None:
         should_restart = self.restart_scheduler_after_exit
         self.restart_scheduler_after_exit = False
+        if exit_code != 0:
+            write_event(
+                "errors",
+                "scheduler_process_failed",
+                "gui",
+                phase="scheduler_process",
+                exit_code=exit_code,
+            )
 
         if not should_restart and not self.chrome_install_warning_shown:
             self.scheduler_status_label.setStyleSheet("color: #C62828; font-weight: bold;")
@@ -409,6 +474,13 @@ class MeetSchedulerWindow(QMainWindow):
 
     # 스케줄러 에러 상태 갱신 함수 끝
     def on_scheduler_error(self, error) -> None:
+        write_event(
+            "errors",
+            "scheduler_process_error",
+            "gui",
+            phase="scheduler_process",
+            error_type=error.name,
+        )
         self.scheduler_status_label.setText("스케줄러 실행 오류")
         self.start_scheduler_button.setEnabled(True)
         self.stop_scheduler_button.setEnabled(False)
@@ -1174,6 +1246,13 @@ class MeetSchedulerWindow(QMainWindow):
                     "새 설정 적용을 위해 스케줄러 재시작 중"
                 )            
         except (OSError, ValueError, TypeError) as error:
+            write_event(
+                "errors",
+                "settings_save_failed",
+                "gui",
+                phase="settings_save",
+                error_type=type(error).__name__,
+            )            
             QMessageBox.warning(self, "저장할 수 없습니다", str(error))
 
     # 저장하지 않은 변경을 버릴지 확인한 뒤 JSON을 다시 불러옵니다.
@@ -1194,6 +1273,14 @@ class MeetSchedulerWindow(QMainWindow):
             self.populate_ui(config)
             self.statusBar().showMessage("내용을 다시 불러왔습니다.", 6000)
         except (OSError, json.JSONDecodeError, ValueError) as error:
+            write_event(
+                "errors",
+                "settings_reload_failed",
+                "gui",
+                phase="settings_reload",
+                error_type=type(error).__name__,
+            )            
+
             QMessageBox.critical(
                 self,
                 "불러오기 실패",
@@ -1213,12 +1300,24 @@ class MeetSchedulerWindow(QMainWindow):
                     timeout=10,
                     check=False,
                 )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
+            except (OSError, subprocess.TimeoutExpired) as error:
+                write_event(
+                    "errors",
+                    "scheduler_taskkill_failed",
+                    "gui",
+                    phase="app_shutdown",
+                    error_type=type(error).__name__,
+                )
 
             if self.scheduler_process.state() != QProcess.ProcessState.NotRunning:
                 self.scheduler_process.kill()
-                self.scheduler_process.waitForFinished(3000)
+                if not self.scheduler_process.waitForFinished(3000):
+                    write_event(
+                        "errors",
+                        "scheduler_shutdown_timeout",
+                        "gui",
+                        phase="app_shutdown",
+                    )
 
         event.accept()
 
@@ -1239,15 +1338,30 @@ def main() -> int:
 
     try:
         window = MeetSchedulerWindow()
-    except (OSError, json.JSONDecodeError, ValueError) as error:
+        terminate_existing_schedulers()
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        RuntimeError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as error:
+        write_event(
+            "errors",
+            "app_startup_failed",
+            "gui",
+            phase="app_startup",
+            error_type=type(error).__name__,
+        )
         QMessageBox.critical(
             None,
             "시작할 수 없습니다",
-            f"schedule.json을 불러오지 못했습니다.\n\n{error}",
+            f"앱 또는 이전 스케줄러 정리 중 오류가 발생했습니다.\n\n{error}",
         )
         return 1
 
     window.show()
+
     return app.exec()
 
 

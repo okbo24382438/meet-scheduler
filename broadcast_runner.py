@@ -7,6 +7,7 @@ import os
 import psutil
 import sys
 import shutil
+import uuid
 
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +23,7 @@ from scheduler import (
     validate_config,
     validate_video_path,
 )
+from log_manage import write_event
 
 AUTH_FILE = Path(".auth/google_state.json")
 
@@ -343,8 +345,8 @@ def click_leave_button(page: Any) -> None:
     try:
         leave_button.click(timeout=10000)
         print("본인만 회의에서 나갔습니다.")
-    except PlaywrightTimeoutError:
-        print("퇴장 버튼을 찾지 못했습니다. 현재 화면을 확인하세요.")
+    except PlaywrightTimeoutError as error:
+        raise RuntimeError("Meet 퇴장 버튼을 클릭하지 못했습니다.") from error
 
 # 비디오 서버를 시작하는 함수
 def start_video_server(video_path: Path) -> tuple[ThreadingHTTPServer, str]:
@@ -479,7 +481,16 @@ def _run_broadcast_core(config: dict[str, Any], video_id: str) -> None:
         video_server.shutdown()
         video_server.server_close()
         meet_page.bring_to_front()
-        print("동영상 공유를 종료했습니다. 회의실에서 종료 전 대기를 시작합니다.")
+        stop_present_button = meet_page.get_by_role(
+            "button",
+            name=re.compile(r"발표 중지|Stop presenting", re.IGNORECASE),
+        ).first
+        stop_present_button.wait_for(state="visible", timeout=10000)
+        stop_present_button.click(timeout=10000)
+        stop_present_button.wait_for(state="hidden", timeout=10000)
+        print("Meet 동영상 공유 종료를 확인했습니다.")
+        print("회의실에서 종료 전 대기를 시작합니다.")
+        
         wait_with_progress(after_video_seconds, "방송 종료 전 대기")
         print("종료 전 대기가 끝났습니다. 이제 본인만 회의에서 나갑니다.")
         click_leave_button(meet_page)
@@ -499,6 +510,7 @@ def run_broadcast(config: dict[str, Any], video_id: str) -> None:
 # 프로그램의 진입점
 def main() -> None:
     parser = argparse.ArgumentParser(description="설정 기반 Google Meet 방송 실행기")
+    parser.add_argument("--broadcast-id")
     parser.add_argument("--config", type=Path, default=CONFIG_FILE)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run-now", action="store_true")
@@ -524,10 +536,25 @@ def main() -> None:
         print(f"다음 방송 시각: {scheduled_at:%Y-%m-%d %H:%M}")
         print("즉시 테스트하려면 --run-now 옵션을 사용하세요.")
         return
+    
+    broadcast_id = args.broadcast_id or uuid.uuid4().hex
 
     print(f"동영상 {video_id} 방송을 시작합니다.")
     validate_video_path(config, video_id)
-    run_broadcast(config, video_id)
+
+    try:
+        run_broadcast(config, video_id)
+    except Exception as error:
+        write_event(
+            "errors",
+            "broadcast_runner_failed",
+            "broadcast_runner",
+            broadcast_id=broadcast_id,
+            video_id=video_id,
+            phase="broadcast_runner",
+            error_type=type(error).__name__,
+        )
+        raise
 
 
 if __name__ == "__main__":
