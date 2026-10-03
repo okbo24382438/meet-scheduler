@@ -46,11 +46,11 @@ python .\scheduler.py --config .\schedule.json
 
 
 //exe 실행 빌드
-python -m PyInstaller --noconfirm --clean --onefile --windowed --icon=.\img\icon_meet_scheduler.ico --name MeetScheduler --distpath .\release\v0.6.0 --workpath .\build\MeetScheduler .\gui\gui_dev.py
+python -m PyInstaller --noconfirm --clean --onefile --windowed --icon=.\img\icon_meet_scheduler.ico --name MeetScheduler --distpath .\release\v0.6.2 --workpath .\build\MeetScheduler .\gui\gui_dev.py
 
-python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --name scheduler --distpath .\release\v0.6.0 --workpath .\build\scheduler .\scheduler.py
+python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --name scheduler --distpath .\release\v0.6.2 --workpath .\build\scheduler .\scheduler.py
 
-python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --collect-all playwright --name broadcast_runner --distpath .\release\v0.6.0 --workpath .\build\broadcast_runner .\broadcast_runner.py
+python -m PyInstaller --noconfirm --clean --onefile --console --icon=.\img\icon_meet_scheduler.ico --collect-all playwright --name broadcast_runner --distpath .\release\v0.6.2 --workpath .\build\broadcast_runner .\broadcast_runner.py
 
 //이미지, json 복사
 Copy-Item .\schedule.json .\release\v0.6.0\
@@ -63,3 +63,7 @@ Copy-Item .\img\icon_meet_scheduler.ico .\release\v0.6.0\img\
 Test-Path .\MeetScheduler.iss
 New-Item -ItemType Directory -Force .\release\installer | Out-Null
 & "C:\Program Files\Inno Setup 7\ISCC.exe" .\MeetScheduler.iss
+
+
+//에러 로그 경로 shell에서 열기
+explorer "$env:LOCALAPPDATA\MeetScheduler\logs"

@@ -217,6 +217,7 @@ def main() -> None:
                 broadcast_id=broadcast_id,
                 video_id=entry["video"],
                 error_type=type(error).__name__,
+                error_message=str(error),
             )            
             message = (
                 f"방송 건너뜀: 예약 시각={scheduled_at}, "
@@ -233,6 +234,7 @@ def main() -> None:
                 broadcast_id=broadcast_id,
                 video_id=entry["video"],
                 exit_code=error.returncode,
+                error_message=str(error),
             )            
             message = (
                 f"방송 실패: 예약 시각={scheduled_at}, "

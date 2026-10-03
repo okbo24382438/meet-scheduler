@@ -76,9 +76,9 @@ git diff --cached --check
 git diff --cached
 
 
-git commit -m "Release v0.5.2"
-git tag -a v0.5.2 -m "Release v0.5.2"
+git commit -m "Release v0.6.2 jsonl 적용
+git tag -a v0.6.2 -m "Release v0.6.2 jsonl 적용
 git status --short
 
 git push origin main
-git push origin v0.5.2
+git push origin v0.6.2

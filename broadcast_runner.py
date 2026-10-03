@@ -241,7 +241,7 @@ def enter_guest_name(page: Any, name: str) -> None:
         raise RuntimeError("참여 이름 입력란을 찾지 못했습니다.") from error
 
 
-#
+# 참여 버튼을 클릭하여 회의에 입장하는 함수
 def click_join_button(page: Any) -> None:
     page.wait_for_timeout(1000)
     join_pattern = re.compile(
@@ -259,29 +259,48 @@ def click_join_button(page: Any) -> None:
         "button", name=re.compile(r"나가기|Leave call|전화 끊기", re.IGNORECASE)
     ).first
 
+    button_found = False
+    enter_sent = False
+
     for join_button in join_candidates:
         try:
+            if join_button.count() == 0 or not join_button.is_visible():
+                continue
+
+            button_found = True
             page.bring_to_front()
             join_button.scroll_into_view_if_needed(timeout=3000)
-
             join_button.focus()
             page.keyboard.press("Enter")
-            page.wait_for_timeout(2000)
-
-            leave_indicator.wait_for(state="visible", timeout=8000)
-            print("참여하기 버튼을 눌렀고 회의 입장을 확인했습니다.")
-            return
+            enter_sent = True
+            break
         except PlaywrightTimeoutError:
             continue
 
-    print(f"참여 버튼을 찾지 못했습니다. 현재 주소: {page.url}")
+    if not button_found:
+        error_message = "Meet 참여 버튼을 찾지 못했습니다."
+    elif not enter_sent:
+        error_message = "Meet 참여 버튼은 찾았지만 Enter 입력을 완료하지 못했습니다."
+    else:
+        try:
+            leave_indicator.wait_for(state="visible", timeout=8000)
+            print("참여 입력 후 회의 입장을 확인했습니다.")
+            return
+        except PlaywrightTimeoutError:
+            error_message = (
+                "Meet 참여 버튼에 입력을 보냈지만 "
+                "입장 상태(나가기 버튼)를 확인하지 못했습니다."
+            )
+
+    print(f"참여 실패 원인: {error_message}")
+    print(f"현재 주소: {page.url}")
     print(f"현재 페이지 제목: {page.title()}")
     page.screenshot(path="join_failure.png", full_page=True)
     print(f"참여 실패 화면을 저장했습니다: {Path('join_failure.png').resolve()}")
     print(f"현재 보이는 버튼: {page.locator('button:visible').all_inner_texts()}")
-    raise RuntimeError("Meet 참여에 실패했습니다. 회의 입장 화면을 확인하세요.")
+    raise RuntimeError(error_message)
 
-
+# 현재 기기로 전환하는 함수
 def switch_to_current_device(page: Any) -> None:
     switch_pattern = re.compile(
         r"현재 기기로 전환|이 기기로 전환|Switch to this device|Use this device",
@@ -490,7 +509,7 @@ def _run_broadcast_core(config: dict[str, Any], video_id: str) -> None:
         stop_present_button.wait_for(state="hidden", timeout=10000)
         print("Meet 동영상 공유 종료를 확인했습니다.")
         print("회의실에서 종료 전 대기를 시작합니다.")
-        
+
         wait_with_progress(after_video_seconds, "방송 종료 전 대기")
         print("종료 전 대기가 끝났습니다. 이제 본인만 회의에서 나갑니다.")
         click_leave_button(meet_page)
@@ -553,6 +572,7 @@ def main() -> None:
             video_id=video_id,
             phase="broadcast_runner",
             error_type=type(error).__name__,
+            error_message=str(error),
         )
         raise
 

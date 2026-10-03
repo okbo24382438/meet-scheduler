@@ -170,11 +170,13 @@ def normalize_time(value: str) -> str:
 
 # 한국어 형식으로 날짜와 시간을 문자열로 변환합니다.
 def format_korean_datetime(value: datetime) -> str:
+    weekdays = ("월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일")
+    weekday = weekdays[value.weekday()]
     period = "오전" if value.hour < 12 else "오후"
     hour = value.hour % 12 or 12
     return (
         f"{value.year}년 {value.month}월 {value.day}일 "
-        f"{period} {hour}시 {value.minute}분 {value.second}초"
+        f"{weekday} {period} {hour}시 {value.minute}분 {value.second}초"
     )
 
 # 주요 GUI 화면과 설정 편집 동작을 관리합니다.
@@ -433,6 +435,7 @@ class MeetSchedulerWindow(QMainWindow):
                 "gui",
                 phase="scheduler_stop",
                 error_type=type(error).__name__,
+                error_message=str(error),
             )
             QMessageBox.warning(self, "중지 요청 실패", str(error))
 
@@ -456,6 +459,7 @@ class MeetSchedulerWindow(QMainWindow):
                 "gui",
                 phase="scheduler_process",
                 exit_code=exit_code,
+                error_message=f"Scheduler exited with code {exit_code} (exit status: {exit_status})"
             )
 
         if not should_restart and not self.chrome_install_warning_shown:
@@ -480,6 +484,7 @@ class MeetSchedulerWindow(QMainWindow):
             "gui",
             phase="scheduler_process",
             error_type=error.name,
+            error_message=self.scheduler_process.errorString()
         )
         self.scheduler_status_label.setText("스케줄러 실행 오류")
         self.start_scheduler_button.setEnabled(True)
@@ -1252,6 +1257,7 @@ class MeetSchedulerWindow(QMainWindow):
                 "gui",
                 phase="settings_save",
                 error_type=type(error).__name__,
+                error_message=str(error),
             )            
             QMessageBox.warning(self, "저장할 수 없습니다", str(error))
 
@@ -1279,6 +1285,7 @@ class MeetSchedulerWindow(QMainWindow):
                 "gui",
                 phase="settings_reload",
                 error_type=type(error).__name__,
+                error_message=str(error),
             )            
 
             QMessageBox.critical(
@@ -1307,6 +1314,7 @@ class MeetSchedulerWindow(QMainWindow):
                     "gui",
                     phase="app_shutdown",
                     error_type=type(error).__name__,
+                    error_message=str(error),
                 )
 
             if self.scheduler_process.state() != QProcess.ProcessState.NotRunning:
@@ -1317,6 +1325,7 @@ class MeetSchedulerWindow(QMainWindow):
                         "scheduler_shutdown_timeout",
                         "gui",
                         phase="app_shutdown",
+                        error_message="Scheduler process did not exit within 3000 ms"
                     )
 
         event.accept()
@@ -1352,6 +1361,7 @@ def main() -> int:
             "gui",
             phase="app_startup",
             error_type=type(error).__name__,
+            error_message=str(error),
         )
         QMessageBox.critical(
             None,
